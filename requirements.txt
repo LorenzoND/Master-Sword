@@ -1,0 +1,6 @@
+nvidia-ml-py>=12.560
+psutil>=6.0
+dearpygui>=2.0
+pystray>=0.19
+pillow>=10.0
+pythonnet>=3.0
