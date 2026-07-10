@@ -1,5 +1,6 @@
 """Janela principal: gráficos ao vivo (GPU/CPU) + controles de clock, boost e perfis."""
 
+import logging
 import os
 import time
 from collections import deque
@@ -260,7 +261,14 @@ def run():
     frame_count = 0
     try:
         while dpg.is_dearpygui_running():
-            board.poll()
+            try:
+                board.poll()
+            except Exception:
+                # Uma leitura de sensor (NVML/LibreHardwareMonitor) ou o write do
+                # live_state pode falhar de forma transiente — GPU híbrida dormindo,
+                # arquivo travado por outro processo, etc. Registra e segue: um poll
+                # perdido não pode derrubar o app inteiro (era a causa do "fecha sozinho").
+                logging.getLogger("master_sword").exception("Falha no poll — pulando este ciclo")
             dpg.render_dearpygui_frame()
             frame_count += 1
             if test_frames and frame_count >= int(test_frames):

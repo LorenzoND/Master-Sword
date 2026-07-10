@@ -9,7 +9,37 @@ Por isso não forçamos elevação na abertura — cada ação que precisar de a
 """
 
 import ctypes
+import logging
 import sys
+from pathlib import Path
+
+LOG_PATH = Path(__file__).resolve().parent / "master-sword.log"
+
+
+def _setup_logging():
+    """Loga em arquivo + captura qualquer exceção não tratada.
+
+    O app é lançado por um atalho que roda o powershell minimizado (WindowStyle=7),
+    então um traceback impresso no console pisca e some junto com a janela — foi por
+    isso que os crashes vinham 'sem aviso'. Aqui garantimos que todo crash deixe
+    rastro em master-sword.log.
+    """
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+        handlers=[
+            logging.FileHandler(LOG_PATH, encoding="utf-8"),
+            logging.StreamHandler(),
+        ],
+    )
+
+    def _excepthook(exc_type, exc, tb):
+        logging.getLogger("master_sword").critical(
+            "Exceção não tratada — app encerrando", exc_info=(exc_type, exc, tb)
+        )
+        sys.__excepthook__(exc_type, exc, tb)
+
+    sys.excepthook = _excepthook
 
 
 def is_admin() -> bool:
@@ -20,6 +50,7 @@ def is_admin() -> bool:
 
 
 def main():
+    _setup_logging()
     if not is_admin():
         print(
             "Master-Sword rodando sem privilégios de administrador.\n"
