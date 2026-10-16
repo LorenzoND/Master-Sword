@@ -1,4 +1,4 @@
-# Instala o Master-Sword: tarefa agendada elevada + atalho na área de trabalho. Rodar uma vez.
+﻿# Instala o Master-Sword: tarefa agendada elevada + atalho na área de trabalho. Rodar uma vez.
 #
 # Por que tarefa agendada: o app precisa de admin (lock de clock da GPU, sensores, EC). Elevar o
 # python.exe do venv direto é barrado pelo SmartScreen, e o atalho antigo (powershell elevado
