@@ -11,7 +11,7 @@ from typing import Optional
 
 import psutil
 
-from core.gpu_control import GpuController
+from core.gpu import GpuController
 
 user32 = ctypes.windll.user32
 _EnumWindowsProc = ctypes.WINFUNCTYPE(ctypes.c_bool, ctypes.c_void_p, ctypes.c_void_p)
