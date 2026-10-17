@@ -52,7 +52,7 @@ class Settings:
     overlay_items: dict = field(default_factory=lambda: dict(_DEFAULT_ITEMS))
     overlay_color: str = "FF8000"  # mesma cor do OSD atual do RTSS
     overlay_position: str = "top-left"
-    overlay_hotkey: str = "Ctrl+Shift+O"
+    overlay_hotkey: str = "PageDown"  # mesmo atalho que estava no Afterburner
     fan_control_enabled: bool = False  # trava de segurança: escrita no EC só depois de habilitar
     fan_curve_enabled: bool = False
 
