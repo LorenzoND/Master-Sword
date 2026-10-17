@@ -17,7 +17,7 @@ import psutil
 
 from core.controller import Controller
 from core.cpu import CpuLimits, CpuSensors
-from core.ec import MsiEc
+from core.ec import EcError, MsiEc
 from core.gpu import GpuController
 from core.logsetup import log_throttled
 from core.rtss import Rtss
@@ -128,6 +128,12 @@ class Sampler(threading.Thread):
         if self.ec is not None:
             try:
                 snap.ec = self.ec.read_state()
+            except EcError:
+                # o EC é dividido com o ACPI do Windows (e o Dragon Center): de vez em quando ele não
+                # responde a tempo. Repete a última leitura em vez de piscar "--" na tela.
+                prev = self._latest
+                snap.ec = prev.ec if prev is not None else None
+                log_throttled("ec_busy", "EC ocupado — repetindo a última leitura", level=logging.INFO, every_s=3600)
             except Exception:
                 log_throttled("ec_read", "Leitura do EC falhou", exc_info=True)
 

@@ -50,10 +50,6 @@ COOLER_BOOST_BIT = 7
 ADDR_SHIFT_MODE = 0xF2
 ADDR_FAN_MODE = 0xF4
 
-# Tacômetro (experimental): 2 bytes big-endian, RPM = 478000 / valor
-ADDR_CPU_TACH = 0xC8
-ADDR_GPU_TACH = 0xCA
-
 FAN_MODES = {"auto": 0x0D, "silent": 0x1D, "advanced": 0x8D}
 FAN_MODE_LABELS = {"auto": "Automático", "silent": "Silencioso", "advanced": "Avançado (curva)"}
 SHIFT_MODES = {"turbo": 0xC4, "sport": 0xC0, "comfort": 0xC1, "eco": 0xC2}
@@ -203,18 +199,9 @@ class MsiEc:
 
     # ---------- leitura de alto nível ----------
 
-    @staticmethod
-    def _rpm(hi: int, lo: int) -> Optional[int]:
-        value = (hi << 8) | lo
-        if value <= 0:
-            return 0
-        rpm = 478000 // value
-        return rpm if 300 <= rpm <= 9000 else None
-
     def read_state(self) -> dict:
         addrs = [ADDR_CPU_TEMP, ADDR_CPU_FAN, ADDR_GPU_TEMP, ADDR_GPU_FAN, ADDR_COOLER_BOOST,
-                 ADDR_SHIFT_MODE, ADDR_FAN_MODE, ADDR_CPU_TACH, ADDR_CPU_TACH + 1,
-                 ADDR_GPU_TACH, ADDR_GPU_TACH + 1]
+                 ADDR_SHIFT_MODE, ADDR_FAN_MODE]
         b = self.read_bytes(addrs)
         fan_mode = next((k for k, v in FAN_MODES.items() if v == b[ADDR_FAN_MODE]), None)
         shift_mode = next((k for k, v in SHIFT_MODES.items() if v == b[ADDR_SHIFT_MODE]), None)
@@ -223,8 +210,10 @@ class MsiEc:
             "gpu_temp_c": b[ADDR_GPU_TEMP],
             "cpu_fan_pct": b[ADDR_CPU_FAN],
             "gpu_fan_pct": b[ADDR_GPU_FAN],
-            "cpu_fan_rpm": self._rpm(b[ADDR_CPU_TACH], b[ADDR_CPU_TACH + 1]),
-            "gpu_fan_rpm": self._rpm(b[ADDR_GPU_TACH], b[ADDR_GPU_TACH + 1]),
+            # Tacômetro desligado: no GS66 10SE 0xC8/0xCA deram GPU = 0 rpm com o fan a 60–72%,
+            # então o endereço não é esse. Só a % (msi-ec) é confiável por enquanto.
+            "cpu_fan_rpm": None,
+            "gpu_fan_rpm": None,
             "cooler_boost": bool(b[ADDR_COOLER_BOOST] >> COOLER_BOOST_BIT & 1),
             "fan_mode": fan_mode,
             "fan_mode_raw": b[ADDR_FAN_MODE],
