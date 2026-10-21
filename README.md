@@ -19,9 +19,12 @@ qualquer notebook Intel + NVIDIA; o controle de fan é específico de notebooks 
 - **Perfis**: aplicam GPU + boost + fan de uma vez; cada item pode ficar em "não mexer". Editar,
   duplicar, excluir, capturar o estado real, perfil ao iniciar e troca rápida pela bandeja.
 - **Overlay**: dentro do jogo via RTSS (transparente, não pega clique, funciona em tela cheia, com
-  FPS/frametime e gráfico de frametime) ou janela de desktop. Liga/desliga por atalho global.
+  FPS/frametime e gráfico de frametime) ou janela de desktop. Liga/desliga por atalho global
+  (padrão **PageDown**, o mesmo do Afterburner). O atalho usa um hook que só observa a tecla:
+  o PageDown continua rolando página nos outros programas, mas todo PageDown sem modificador
+  alterna o overlay. Dá pra trocar em Overlay → Mostrar/esconder.
 - **Alertas**: notificação do Windows e overlay em vermelho acima do limite configurado.
-- **Fan (EC)**: leitura de % (e RPM quando disponível), modo do fan, Cooler Boost e modo MSI
+- **Fan (EC)**: leitura de % do fan, modo do fan, Cooler Boost e modo MSI
   (Eco/Comfort/Sport/Turbo). Escrita só com firmware reconhecido, depois de habilitar, e cada
   escrita é conferida lendo de volta. Curva de fan experimental.
 - **Processos**: o que mais consome CPU/RAM/VRAM; baixar prioridade ou encerrar (com confirmação).
@@ -72,11 +75,29 @@ ui/
 Logs em `logs/` (3 arquivos de 1 MB). Dev: `.venv\Scripts\python main.pyw --no-elevate` roda sem
 admin (lock, sensores de CPU e fan ficam desativados).
 
+## Testes
+
+Sem admin, as páginas podem ser renderizadas fora da tela e salvas como imagem:
+
+```
+set MASTER_SWORD_PAGE=overlay
+set MASTER_SWORD_TEST_POS=-4000,100
+set MASTER_SWORD_SCREENSHOT=C:	emp\overlay.png
+.venv\Scripts\python main.pyw --no-elevate
+```
+
+Validado no GS66 10SE (out/2026): EC 16V1EMS1.118 reconhecido, sensores e MSR da CPU, lock
+da GPU, boost, Cooler Boost (fan dispara e volta, escrita conferida), modo MSI, modo do fan,
+reconexão do NVML depois de uma queda real e atalho PageDown. Ainda não testado: overlay do
+RTSS dentro de um jogo.
+
 ## Cuidados
 
 - O lock da GPU continua no driver com o app fechado (como o `nvidia-smi`). O app lembra o que
   aplicou e descarta isso quando o PC reinicia. Em Ajustes dá pra soltar o lock ao sair.
 - Se o Dragon Center / MSI Center estiver aberto, ele pode trocar o modo do fan e o modo MSI por
   conta própria. O app sempre mostra o valor real lido do EC.
+- RPM do fan não é mostrado: os endereços de tacômetro comuns em MSI (0xC8/0xCA) não batem no
+  GS66 10SE (GPU = 0 rpm com o fan a 60–72%). Só a % (mapa do msi-ec) é confiável.
 - Escrita no EC é a parte de risco: a curva de fan é experimental e só aceita curva crescente com
   o último ponto ≥ 80%.
