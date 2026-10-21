@@ -1,8 +1,11 @@
 .venv/
 __pycache__/
 *.pyc
-profiles/*.json
+profiles/*
 !profiles/.gitkeep
+logs/
 *.log
+state.json
+settings.json
+*.tmp
 _live_stats.json
-_live_stats.tmp

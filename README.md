@@ -1,72 +1,103 @@
 # Master-Sword
 
-Ferramenta nativa (Windows, sem browser) pra controlar e monitorar CPU + GPU em notebooks com
-gargalo térmico — substitui o combo manual de `nvidia-smi -lgc` + ThrottleStop por um dashboard
-único, leve, com gráficos ao vivo, overlay opcional e perfis de um clique.
+App nativo de Windows (sem browser) pra controlar e monitorar CPU + GPU em notebook com gargalo
+térmico. Substitui o combo `nvidia-smi -lgc` + ThrottleStop + overlay do MSI Afterburner por uma
+coisa só, leve, que fica na bandeja.
 
-Desenvolvida pra um MSI GS66 Stealth 10SE (Intel i7-10750H + RTX 2060), mas o core (GPU NVIDIA
-via NVML, CPU Intel via Power Plan) funciona em qualquer notebook com essa combinação.
+Feito pro MSI GS66 Stealth 10SE (i7-10750H + RTX 2060). O núcleo (NVML + Power Plan) serve pra
+qualquer notebook Intel + NVIDIA; o controle de fan é específico de notebooks MSI com EC compatível.
 
-## Funcionalidades
+## O que faz
 
-- **GPU**: leitura completa (temp, clocks, power, VRAM, utilização, processos por PID), lock de
-  clock (equivalente a `nvidia-smi -lgc`)
-- **CPU**: toggle de Boost/Turbo via Power Plan do Windows (sem precisar de driver nem admin),
-  sensores completos (temp/clock/power) via LibreHardwareMonitor + PawnIO
-- **Perfis**: salva combinações de config (clock da GPU + boost da CPU) e aplica tudo com 1 clique
-- **Dashboard**: gráficos ao vivo (ImPlot) de temperatura, clock e power
-- **Overlay**: janela compacta, sempre no topo, liga/desliga pela bandeja
-- **Varredura de processos**: lista o que mais consome CPU/RAM/GPU, com ação de baixar prioridade
-  (reversível, estilo Process Lasso) ou encerrar (`kill`, sempre manual com confirmação)
+- **Painel**: temperatura, clock, power e uso de GPU/CPU, fans, RAM/VRAM e FPS, com cor por nível.
+  Gráfico com escala fixa (1, 5 ou 15 min), faixa de alerta, linha onde a GPU começa a segurar o
+  clock e faixas marcando quando GPU/CPU foram limitadas.
+- **Motivo de limite**: diz se a GPU está sendo segurada por temperatura ou power (NVML) e se a CPU
+  está em throttle térmico ou de power (MSR, só leitura).
+- **Controles**: lock de clock da GPU (= `nvidia-smi -lgc`), modo de boost da CPU (todos os 7 do
+  Windows, não só liga/desliga).
+- **Perfis**: aplicam GPU + boost + fan de uma vez; cada item pode ficar em "não mexer". Editar,
+  duplicar, excluir, capturar o estado real, perfil ao iniciar e troca rápida pela bandeja.
+- **Overlay**: dentro do jogo via RTSS (transparente, não pega clique, funciona em tela cheia, com
+  FPS/frametime e gráfico de frametime) ou janela de desktop. Liga/desliga por atalho global
+  (padrão **PageDown**, o mesmo do Afterburner). O atalho usa um hook que só observa a tecla:
+  o PageDown continua rolando página nos outros programas, mas todo PageDown sem modificador
+  alterna o overlay. Dá pra trocar em Overlay → Mostrar/esconder.
+- **Alertas**: notificação do Windows e overlay em vermelho acima do limite configurado.
+- **Fan (EC)**: leitura de % do fan, modo do fan, Cooler Boost e modo MSI
+  (Eco/Comfort/Sport/Turbo). Escrita só com firmware reconhecido, depois de habilitar, e cada
+  escrita é conferida lendo de volta. Curva de fan experimental.
+- **Processos**: o que mais consome CPU/RAM/VRAM; baixar prioridade ou encerrar (com confirmação).
 
-## Rodar
+## Instalar
 
-Requer Python 3.12+, Windows, GPU NVIDIA e CPU Intel.
+Requer Windows, Python 3.12+, GPU NVIDIA, CPU Intel e o driver [PawnIO](https://github.com/namazso/PawnIO)
+(`winget install PawnIO`) pra sensores de CPU, MSR e EC.
 
 ```
 python -m venv .venv
 .venv\Scripts\pip install -r requirements.txt
-.venv\Scripts\python main.py
+powershell -ExecutionPolicy Bypass -File install.ps1
 ```
 
-Lock de clock/power da GPU e sensores completos de CPU exigem rodar como administrador — use
-`setup_shortcut.ps1` pra criar um atalho na área de trabalho que já abre elevado:
+O `install.ps1` pede UAC uma vez e cria:
+- a tarefa agendada **Master-Sword** ("executar com privilégios mais altos"), que sobe o
+  `pythonw.exe` já elevado — sem janela de console e sem UAC a cada abertura;
+- o atalho **Master-Sword** na área de trabalho, que roda o `pythonw` sem elevação e só dispara a
+  tarefa. (Elevar o `python.exe` do venv direto é barrado pelo SmartScreen.)
 
-```
-powershell -ExecutionPolicy Bypass -File setup_shortcut.ps1
-```
-
-(O atalho eleva o `powershell.exe`, não o `python.exe` direto — o SmartScreen bloqueia elevação
-de binários novos/sem reputação, então a saída é elevar um binário confiável e chamar o Python
-como processo filho já dentro da sessão elevada.)
-
-Sensores completos de CPU (temperatura, clock, power) também precisam do driver
-[PawnIO](https://github.com/namazso/PawnIO) instalado (`winget install PawnIO`) — sem ele, só o
-`%` de uso de CPU fica disponível.
+Clicar no atalho com o app aberto só traz a janela pra frente. O X da janela esconde na bandeja;
+sair é pelo menu da bandeja. "Iniciar com o Windows" fica em Ajustes.
 
 ## Estrutura
 
 ```
+main.pyw              entrada (sem console): lança via tarefa, instância única, sobe tudo
+install.ps1           tarefa agendada + atalho
 core/
-  gpu_control.py    NVML: leitura + lock de clock + power limit + processos por GPU
-  cpu_control.py    powercfg (boost) + LibreHardwareMonitor (sensores)
-  scan.py           varredura de processos (CPU/RAM/GPU) + baixar prioridade / kill
-  profiles.py       perfis salvos em profiles/*.json
-  live_state.py     estado compartilhado entre o dashboard e o overlay (processo separado)
-
+  gpu.py              NVML: leitura, motivo de limite, lock de clock, reconexão automática
+  cpu.py              boost (powercfg), sensores (LibreHardwareMonitor), limite via MSR
+  ec.py               EC do MSI via PawnIO: fans, Cooler Boost, modos, curva
+  sampler.py          thread de coleta 1 Hz + histórico de 15 min
+  controller.py       toda ação que muda hardware passa por aqui (UI, bandeja, perfis)
+  profiles.py         perfis v2 (converte os da v1)
+  state.py            o que foi aplicado (o lock da GPU sobrevive ao app fechar)
+  settings.py         preferências
+  rtss.py / osd.py    overlay in-game via memória compartilhada do RTSS
+  overlay.py          escolhe RTSS / desktop a cada leitura
+  alerts.py, hotkey.py, launcher.py, logsetup.py, scan.py
 ui/
-  dashboard.py       janela principal
-  tray.py            ícone na bandeja
-  overlay.py         overlay compacto, always-on-top (subprocesso)
-  process_window.py  janela de varredura de processos
-  theme.py            tema visual
-  icon.py             ícone pixel-art (gerado uma vez, cacheado em assets/)
+  app.py              janela, barra lateral, loop, bandeja
+  pages/              painel, perfis, fan, overlay, processos, ajustes
+  theme.py, widgets.py, tray.py, desktop_overlay.py, icon.py
 ```
 
-## Limitações conhecidas
+Logs em `logs/` (3 arquivos de 1 MB). Dev: `.venv\Scripts\python main.pyw --no-elevate` roda sem
+admin (lock, sensores de CPU e fan ficam desativados).
 
-- Overlay não é transparente/clickthrough — a versão atual do Dear PyGui não expõe essas funções
-  de viewport ainda
-- Power limit da GPU costuma vir travado pelo vBIOS em notebook (`NotSupported` via NVML) —
-  lock de clock funciona normalmente
-- Controle de fan (EC do notebook) ainda não implementado
+## Testes
+
+Sem admin, as páginas podem ser renderizadas fora da tela e salvas como imagem:
+
+```
+set MASTER_SWORD_PAGE=overlay
+set MASTER_SWORD_TEST_POS=-4000,100
+set MASTER_SWORD_SCREENSHOT=C:	emp\overlay.png
+.venv\Scripts\python main.pyw --no-elevate
+```
+
+Validado no GS66 10SE (out/2026): EC 16V1EMS1.118 reconhecido, sensores e MSR da CPU, lock
+da GPU, boost, Cooler Boost (fan dispara e volta, escrita conferida), modo MSI, modo do fan,
+reconexão do NVML depois de uma queda real e atalho PageDown. Ainda não testado: overlay do
+RTSS dentro de um jogo.
+
+## Cuidados
+
+- O lock da GPU continua no driver com o app fechado (como o `nvidia-smi`). O app lembra o que
+  aplicou e descarta isso quando o PC reinicia. Em Ajustes dá pra soltar o lock ao sair.
+- Se o Dragon Center / MSI Center estiver aberto, ele pode trocar o modo do fan e o modo MSI por
+  conta própria. O app sempre mostra o valor real lido do EC.
+- RPM do fan não é mostrado: os endereços de tacômetro comuns em MSI (0xC8/0xCA) não batem no
+  GS66 10SE (GPU = 0 rpm com o fan a 60–72%). Só a % (mapa do msi-ec) é confiável.
+- Escrita no EC é a parte de risco: a curva de fan é experimental e só aceita curva crescente com
+  o último ponto ≥ 80%.
